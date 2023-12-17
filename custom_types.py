@@ -9,3 +9,7 @@ FilterKernel = List[List[float]]
 FloatOrNone = Union[float, None]
 
 ImageFunction = Callable[[int, int], int]
+
+DiscreteFourierTransform = List[List[complex]]
+
+DiscreteFourierTransformFunction = Callable[[int, int], complex]

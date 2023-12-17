@@ -1,10 +1,10 @@
-from typing import List
+from typing import List, Union
 from custom_types import ListImage
 from numpy import array, clip, uint8
 from PIL import Image
 from constants import MIN_INTENSITY, MAX_INTENSITY
 
-def convertToProperImage(image: List[List[float]]) -> ListImage:
+def convertToProperImage(image: List[List[Union[float, complex]]]) -> ListImage:
     # Convert values to int and limit them to min_intensity, max_intensity
 
     # has some problem with types but still works
