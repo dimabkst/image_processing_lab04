@@ -21,15 +21,9 @@ def labTask(image_path: str) -> None:
 
         saveImage(convertToPillowImage(inversed), f'{computed_directory}{file_name}_inversed_original_{file_extension}')
 
-        gaussian_psf = getGaussianPSF((3, 3))
-
-        # gaussian_psf = [[0.07511360795411151, 0.12384140315297397, 0.07511360795411151], [0.12384140315297397, 0.2041799555716581, 0.12384140315297397], [0.07511360795411151, 0.12384140315297397, 0.07511360795411151]]
-
-        # matlab_gaussian_psf = [[0.0751, 0.1238, 0.0751], [0.1238, 0.2042, 0.1238], [0.0751, 0.1238, 0.0751]]
+        gaussian_psf = getGaussianPSF((len(image), len(image[0])), sigma=3)
 
         blurred_image = blurrImage(image, gaussian_psf)
-
-        # blurred_image = convertToListImage(Image.open('./computed/blurred_cameraman.tif'))
 
         saveImage(convertToPillowImage(blurred_image), f'{computed_directory}{file_name}_blurred_{file_extension}')
 

@@ -2,9 +2,9 @@ from math import exp, pi
 from numpy import array, sqrt, complex128
 from numpy.fft import fft2, ifft2, fftshift, ifftshift
 from scipy.signal import convolve2d
-from typing import Literal, Union
+from typing import List, Literal, Union
 from custom_types import DiscreteFourierTransform, DiscreteFunctionMatrix, ListImage, FloatOrNone, ImageFunction, FilterKernel, PSFKernerl, Sizes2D
-from utils import convertToProperImage
+from utils import convertToProperImage, plot2DMatrix
 
 def getMean(image: ListImage) -> float:
     N = len(image)
@@ -85,27 +85,27 @@ def linearSpatialFiltering(image: ListImage, filter_kernel: FilterKernel) -> Lis
 
     return convertToProperImage(filtered_image)
 
-def get2DDiscreteFourierTransform(discrete_function: DiscreteFunctionMatrix, sizes: Union[Sizes2D, None] = None, centered: bool = True, normalized: bool = False) -> DiscreteFourierTransform:
+def get2DDiscreteFourierTransform(discrete_function: DiscreteFunctionMatrix, sizes: Union[Sizes2D, None] = None, centered: bool = False, normalized: bool = False) -> DiscreteFourierTransform:
     # Convert the function to a NumPy array for faster computation
     np_discrete_function = array(discrete_function, dtype=complex128)
 
     sizes = sizes or (len(discrete_function), len(discrete_function[0]))
 
     # Compute the 2D FFT using NumPy
-    np_fft_result = fft2(np_discrete_function, s=sizes, norm='ortho')
+    np_fft_result = fft2(np_discrete_function, s=sizes)
 
     # center if needed
     np_result = fftshift(np_fft_result) if centered else np_fft_result
 
-    # # normalize if needed
-    # if (normalized):
-    #     np_result = np_result / sqrt(len(discrete_function) * len(discrete_function[0]))
+    # normalize if needed
+    if (normalized):
+        np_result = np_result / sqrt(len(discrete_function) * len(discrete_function[0]))
 
     result = np_result.tolist()
 
     return result
 
-def get2DInverseDiscreteFourierTransform(fourier_transform: DiscreteFourierTransform, sizes: Union[Sizes2D, None] = None, centered: bool = True, normalized: bool = False) -> ListImage:
+def get2DInverseDiscreteFourierTransform(fourier_transform: DiscreteFourierTransform, centered: bool = False, normalized: bool = False) -> ListImage:
     # Convert the fourier transform to a NumPy array for faster computation
     np_fourier_transform = array(fourier_transform, dtype=complex128)
 
@@ -113,22 +113,29 @@ def get2DInverseDiscreteFourierTransform(fourier_transform: DiscreteFourierTrans
     if centered:
         np_fourier_transform = ifftshift(np_fourier_transform)
 
-    sizes = sizes or (len(fourier_transform), len(fourier_transform[0]))
-
     # Perform the inverse 2D FFT using NumPy
-    np_inverse_fft_result = ifft2(np_fourier_transform, s=sizes, norm='ortho')
+    np_inverse_fft_result = ifft2(np_fourier_transform)
 
-    # # denormalize if needed
-    # if (normalized):
-    #     np_inverse_fft_result = np_inverse_fft_result * sqrt(sizes[0] * sizes[1])
+    # denormalize if needed
+    if (normalized):
+        np_inverse_fft_result = np_inverse_fft_result * sqrt(len(fourier_transform) * len(fourier_transform[0]))
     
     # Convert the result to a ListImage
-    inverse_fft_result = np_inverse_fft_result.real.tolist()
+    inverse_fft_result = abs(np_inverse_fft_result).tolist()
 
     return convertToProperImage(inverse_fft_result)
 
+def get2DDiscreteFourierTransformMagnitude(fourier_transform: DiscreteFourierTransform) -> List[List[float]]:
+    return [[abs(el) for el in row] for row in fourier_transform]
+
+def plot2DDiscreteFourierTransform(fourier_transform: DiscreteFourierTransform, centered: bool = True) -> None:
+    if centered:
+        fourier_transform = fftshift(array(fourier_transform)).tolist()
+        
+    plot2DMatrix(get2DDiscreteFourierTransformMagnitude(fourier_transform))
+
 # own implementation of MATLAB fspecial('gaussian', window_size, sigma)
-def getGaussianPSF(window_sizes: Sizes2D, sigma: float = 1.0, centered: bool = True, normalization: Literal['sum', 'pi'] = 'sum') -> PSFKernerl:
+def getGaussianPSF(window_sizes: Sizes2D, sigma: float = 1.0, centered: bool = False, normalization: Literal['sum', 'pi'] = 'sum') -> PSFKernerl:
     center_x = 0
     center_y = 0
 
@@ -147,7 +154,7 @@ def getGaussianPSF(window_sizes: Sizes2D, sigma: float = 1.0, centered: bool = T
 
     return normalized_psf
 
-def blurrImage(image: ListImage, psf: PSFKernerl) -> ListImage:
+def _blurrImage(image: ListImage, psf: PSFKernerl) -> ListImage:
     psf_sum = sum([sum(row) for row in psf])
 
     # normalize PSF
@@ -157,6 +164,20 @@ def blurrImage(image: ListImage, psf: PSFKernerl) -> ListImage:
     blurred_image = convolve2d(image, normalized_psf, mode='same', boundary='symm').tolist()
 
     return convertToProperImage(blurred_image)
+
+def blurrImage(image: ListImage, psf: PSFKernerl) -> ListImage:
+    M = len(image)
+    N = len(image[0])
+
+    image_fourier_transform = get2DDiscreteFourierTransform(image)
+
+    psf_fourier_transform = get2DDiscreteFourierTransform(psf)
+
+    blurred_image_fourier_transform = [[image_fourier_transform[i][j] * psf_fourier_transform[i][j] for j in range(N)] for i in range(M)]
+
+    return get2DInverseDiscreteFourierTransform(blurred_image_fourier_transform)
+
+
 
 def wienerFiltration(blurred_image: ListImage, psf: PSFKernerl, alpha: float) -> ListImage:
     M = len(blurred_image)
@@ -168,12 +189,16 @@ def wienerFiltration(blurred_image: ListImage, psf: PSFKernerl, alpha: float) ->
 
     noise_approximation = [[abs(blurred_image[i][j] - filtered_image[i][j]) for j in range(N)] for i in range(M)]
 
-    K = getVariance(noise_approximation) / getVariance(blurred_image)
+    noise_variance = getVariance(noise_approximation)
+
+    blurred_variance = getVariance(blurred_image)
+
+    K = M * N * noise_variance / (blurred_variance ** 2)
 
     blurred_image_fourier_transform = get2DDiscreteFourierTransform(blurred_image)
 
-    psf_fourier_transform = get2DDiscreteFourierTransform(psf, sizes=(M, N))
-
+    psf_fourier_transform = get2DDiscreteFourierTransform(psf)
+    
     restored_image_fourier_transform = [[(psf_fourier_transform[u][v].conjugate() / (abs(psf_fourier_transform[u][v]) ** 2 + alpha * K)) * blurred_image_fourier_transform[u][v] 
                                          for v in range(N)] for u in range(M)]
     
