@@ -1,4 +1,4 @@
-from math import exp, pi
+from math import exp, log10, pi
 from numpy import array, sqrt, complex128
 from numpy.fft import fft2, ifft2, fftshift, ifftshift
 from scipy.signal import convolve2d
@@ -30,6 +30,18 @@ def getStandardDeviation(image: Union[ListImage, ListImageRaw], mean: FloatOrNon
     standard_deviation = variance ** 0.5
 
     return standard_deviation
+
+def getBSNR(blurred_image_without_noise: ListImage, restored_image: ListImage, noise_variance: float) -> float:
+    M = len(blurred_image_without_noise)
+    N = len(blurred_image_without_noise[0])
+
+    return 10 * log10(sum([sum([(blurred_image_without_noise[i][j] - restored_image[i][j]) ** 2 for j in range(N)]) for i in range(M)]) / (M * N * noise_variance))
+
+def getISNR(ideal_image: ListImage, degraded_image: ListImage, restored_image: ListImage) -> float:
+    M = len(ideal_image)
+    N = len(ideal_image[0])
+
+    return 10 * log10(sum([sum([(ideal_image[i][j] - degraded_image[i][j]) ** 2 for j in range(N)]) for i in range(M)]) / sum([sum([(ideal_image[i][j] - restored_image[i][j]) ** 2 for j in range(N)]) for i in range(M)]))
 
 def createFilterKernel(weights: FilterKernel) -> FilterKernel:
     filter_kernel = weights
@@ -196,7 +208,7 @@ def blurrImage(image: ListImage, psf: PSFKernerl) -> ListImage:
 
     return get2DInverseDiscreteFourierTransform(blurred_image_fourier_transform)
 
-def wienerFiltration(blurred_image: ListImage, psf: PSFKernerl, alpha: float) -> ListImage:
+def _getNoiseVariance(blurred_image: ListImage) -> float:
     M = len(blurred_image)
     N = len(blurred_image[0])
 
@@ -207,6 +219,14 @@ def wienerFiltration(blurred_image: ListImage, psf: PSFKernerl, alpha: float) ->
     noise_approximation = [[abs(blurred_image[i][j] - filtered_image[i][j]) for j in range(N)] for i in range(M)]
 
     noise_variance = getVariance(noise_approximation)
+    
+    return noise_variance
+
+def wienerFiltration(blurred_image: ListImage, psf: PSFKernerl, alpha: float) -> ListImage:
+    M = len(blurred_image)
+    N = len(blurred_image[0])
+    
+    noise_variance = _getNoiseVariance(blurred_image)
 
     blurred_variance = getVariance(blurred_image)
 

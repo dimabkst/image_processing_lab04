@@ -2,7 +2,7 @@ from traceback import print_exc
 from os.path import basename, splitext
 from PIL import Image
 from constants import COMPUTED_DIRECTORY_NAME
-from services import addGaussianAdditiveNoise, blurrImage, get2DDiscreteFourierTransform, get2DInverseDiscreteFourierTransform, getGaussianPSF, getStandardDeviation, wienerFiltration
+from services import addGaussianAdditiveNoise, blurrImage, get2DDiscreteFourierTransform, get2DInverseDiscreteFourierTransform, getBSNR, getGaussianPSF, getISNR, wienerFiltration, _getNoiseVariance
 from utils import convertToListImage, convertToPillowImage, saveImage
 
 def labTask(image_path: str) -> None:
@@ -34,6 +34,17 @@ def labTask(image_path: str) -> None:
         wiener_alphas = [0.00001, 0.0001, 0.001, 0.01]
 
         wiener_results = [wienerFiltration(noisy_blurred_image, gaussian_psf, alpha) for alpha in wiener_alphas]
+
+        noise_variance = _getNoiseVariance(noisy_blurred_image)
+
+        bsnr_results = [getBSNR(blurred_image, wiener_results[i], noise_variance) for i in range(len(wiener_results))]
+
+        isnr_results = [getISNR(image, noisy_blurred_image, wiener_results[i]) for i in range(len(wiener_results))]
+
+        print(f'Image: {file_name_with_extension}')
+        for i in range(len(wiener_alphas)):
+            print(f'Alpha = {wiener_alphas[i]}, BSNR = {bsnr_results[i]}, ISNR = {isnr_results[i]}')
+        print('\n')
 
         for i in range(len(wiener_results)):
             saveImage(convertToPillowImage(wiener_results[i]), f'{computed_directory}{file_name}_wiener{i + 1}_{file_extension}')
