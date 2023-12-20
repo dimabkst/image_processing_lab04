@@ -3,10 +3,10 @@ from numpy import array, sqrt, complex128
 from numpy.fft import fft2, ifft2, fftshift, ifftshift
 from scipy.signal import convolve2d
 from typing import List, Literal, Union
-from custom_types import DiscreteFourierTransform, DiscreteFunctionMatrix, ListImage, FloatOrNone, ImageFunction, FilterKernel, PSFKernerl, Sizes2D
-from utils import convertToProperImage, plot2DMatrix
+from custom_types import DiscreteFourierTransform, DiscreteFunctionMatrix, ListImage, FloatOrNone, ImageFunction, FilterKernel, ListImageRaw, PSFKernerl, Sizes2D
+from utils import convertToProperImage, generateGaussianNoise, plot2DMatrix
 
-def getMean(image: ListImage) -> float:
+def getMean(image: Union[ListImage, ListImageRaw]) -> float:
     N = len(image)
     M = len(image[0])
 
@@ -14,7 +14,7 @@ def getMean(image: ListImage) -> float:
 
     return mean
 
-def getVariance(image: ListImage, mean: FloatOrNone=None) -> float:
+def getVariance(image: Union[ListImage, ListImageRaw], mean: FloatOrNone=None) -> float:
     N = len(image)
     M = len(image[0])
 
@@ -24,7 +24,7 @@ def getVariance(image: ListImage, mean: FloatOrNone=None) -> float:
 
     return variance
 
-def getStandardDeviation(image: ListImage, mean: FloatOrNone=None, variance: FloatOrNone=None) -> float:
+def getStandardDeviation(image: Union[ListImage, ListImageRaw], mean: FloatOrNone=None, variance: FloatOrNone=None) -> float:
     variance = variance if variance is not None else getVariance(image, mean)
 
     standard_deviation = variance ** 0.5
@@ -70,7 +70,7 @@ def getMirroredImageFunction(image: ListImage, filter_kernel_sizes: Sizes2D) -> 
 
     return mirroredImageFunction
 
-def linearSpatialFiltering(image: ListImage, filter_kernel: FilterKernel) -> ListImage:
+def linearSpatialFilteringRaw(image: ListImage, filter_kernel: FilterKernel) -> ListImageRaw:
     N = len(image)
     M = len(image[0])
 
@@ -82,6 +82,11 @@ def linearSpatialFiltering(image: ListImage, filter_kernel: FilterKernel) -> Lis
     b = filter_kernel_sizes[1] // 2
 
     filtered_image = [[sum([sum([filter_kernel[a + s][b + t] * extended_image_function(i + s, j + t) for t in range(-b, b + 1)]) for s in range(-a, a + 1)]) for j in range(M)] for i in range(N)]
+
+    return filtered_image
+
+def linearSpatialFiltering(image: ListImage, filter_kernel: FilterKernel) -> ListImage:
+    filtered_image = linearSpatialFilteringRaw(image, filter_kernel)
 
     return convertToProperImage(filtered_image)
 
@@ -134,6 +139,20 @@ def plot2DDiscreteFourierTransform(fourier_transform: DiscreteFourierTransform, 
         
     plot2DMatrix(get2DDiscreteFourierTransformMagnitude(fourier_transform))
 
+def addGaussianAdditiveNoise(image: ListImage, std_dev_coef: float) -> ListImage:
+    N = len(image)
+    M = len(image[0])
+
+    mean = getMean(image)
+
+    standart_deviation = getStandardDeviation(image, mean)
+
+    noise = generateGaussianNoise(mean, std_dev_coef * standart_deviation, (N, M))
+
+    noisy_image = [[image[i][j] + noise[i][j] - mean for j in range(M)] for i in range(N)]
+
+    return convertToProperImage(noisy_image)
+
 # own implementation of MATLAB fspecial('gaussian', window_size, sigma)
 def getGaussianPSF(window_sizes: Sizes2D, sigma: float = 1.0, centered: bool = False, normalization: Literal['sum', 'pi'] = 'sum') -> PSFKernerl:
     center_x = 0
@@ -177,15 +196,13 @@ def blurrImage(image: ListImage, psf: PSFKernerl) -> ListImage:
 
     return get2DInverseDiscreteFourierTransform(blurred_image_fourier_transform)
 
-
-
 def wienerFiltration(blurred_image: ListImage, psf: PSFKernerl, alpha: float) -> ListImage:
     M = len(blurred_image)
     N = len(blurred_image[0])
 
     filter_kernel = createFilterKernel([[1, 2, 1], [2, 4, 2], [1, 2, 1]])
 
-    filtered_image = linearSpatialFiltering(blurred_image, filter_kernel)
+    filtered_image = linearSpatialFilteringRaw(blurred_image, filter_kernel)
 
     noise_approximation = [[abs(blurred_image[i][j] - filtered_image[i][j]) for j in range(N)] for i in range(M)]
 
@@ -193,7 +210,7 @@ def wienerFiltration(blurred_image: ListImage, psf: PSFKernerl, alpha: float) ->
 
     blurred_variance = getVariance(blurred_image)
 
-    K = M * N * noise_variance / (blurred_variance ** 2)
+    K = M * N * noise_variance / blurred_variance
 
     blurred_image_fourier_transform = get2DDiscreteFourierTransform(blurred_image)
 

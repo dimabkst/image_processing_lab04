@@ -2,6 +2,8 @@ from typing import List, Callable, Tuple, Union
 
 ListImage = List[List[int]]
 
+ListImageRaw = List[List[float]]
+
 FilterKernel = List[List[float]]
 
 PSFKernerl = List[List[float]]

@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 from typing import List, Union
 from numpy import array, clip, pad, zeros, uint8
+from numpy.random import normal
 from PIL import Image
 from custom_types import ListImage, Sizes2D
 from constants import MIN_INTENSITY, MAX_INTENSITY
@@ -31,7 +32,10 @@ def surroundMatrixWithZeros(matrix: List[List], new_sizes: Sizes2D) -> List[List
 
     return new.tolist()
 
-def convertToProperImage(image: List[List[Union[float, complex]]]) -> ListImage:
+def generateGaussianNoise(mean: float=0.0, std_dev: float=1.0, size:Union[Sizes2D, None]=None) -> List:
+    return normal(mean, std_dev, size).tolist()
+
+def convertToProperImage(image: List[List[float]]) -> ListImage:
     # Convert values to int and limit them to min_intensity, max_intensity
 
     # has some problem with types but still works
