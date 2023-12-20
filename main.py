@@ -27,7 +27,7 @@ def labTask(image_path: str) -> None:
 
         saveImage(convertToPillowImage(blurred_image), f'{computed_directory}{file_name}_blurred_{file_extension}')
 
-        noisy_blurred_image = addGaussianAdditiveNoise(blurred_image, 0.1)
+        noisy_blurred_image = addGaussianAdditiveNoise(blurred_image, 0.01)
 
         saveImage(convertToPillowImage(noisy_blurred_image), f'{computed_directory}{file_name}_noisy_blurred_{file_extension}')
 
